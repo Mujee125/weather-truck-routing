@@ -102,6 +102,8 @@ i.e. `[0, 1, 2, ..., 48]`.
 shows forecast data for `reference_time + H hours` along the corridor.
 
 ---
+## 7. Alternative Routes Distance Cap
+ORS rejects `alternative_routes` requests once road distance exceeds 100km (error 2004), taking ~30s+ to reject. We pre-check straight-line (haversine) distance between origin/destination and skip requesting alternatives when it's >= 55 miles (conservative margin below the ~62mi/100km threshold, since road distance >= straight-line distance). Borderline cases still fall back to the existing retry-without-alternatives path on HTTP 400. This means trips over ~55mi straight-line will typically return only 1 route, with the existing "fewer than 3 routes" warning (DECISIONS.md §5) surfaced to the user.
 
 ## Additional Implementation Notes (not explicitly asked, but needed)
 

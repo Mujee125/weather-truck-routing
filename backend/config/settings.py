@@ -45,6 +45,22 @@ INSTALLED_APPS = [
     "healthcheck",
 ]
 
+ORS_API_KEY = os.environ.get("ORS_API_KEY", "")
+
+REST_FRAMEWORK = {
+    "EXCEPTION_HANDLER": "trip_analysis.api.exceptions.custom_exception_handler",
+    "DEFAULT_AUTHENTICATION_CLASSES": [],
+    "DEFAULT_PERMISSION_CLASSES": [],
+    "DEFAULT_RENDERER_CLASSES": ["rest_framework.renderers.JSONRenderer"],
+}
+
+LOGGING = {
+    "version": 1,
+    "disable_existing_loggers": False,
+    "handlers": {"console": {"class": "logging.StreamHandler"}},
+    "root": {"handlers": ["console"], "level": "INFO"},
+}
+
 MIDDLEWARE = [
     "django.middleware.security.SecurityMiddleware",
     "corsheaders.middleware.CorsMiddleware",   # must be high in the list, before CommonMiddleware

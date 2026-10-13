@@ -19,6 +19,7 @@ fpdf2==2.8.7
 gunicorn==26.2.0
 idna==3.18
 img2pdf==0.6.3
+iniconfig==2.3.1
 itsdangerous==2.2.0
 Jinja2==3.1.4
 lxml==5.3.0
@@ -44,6 +45,8 @@ pypdfium2==5.12.1
 PyQt6==6.11.0
 PyQt6-Qt6==6.11.1
 PyQt6_sip==13.12.0
+pytest==9.1.1
+pytest-django==4.14.0
 python-docx==1.1.2
 python-dotenv==1.2.4
 python-pptx==1.0.2
