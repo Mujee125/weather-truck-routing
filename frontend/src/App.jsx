@@ -11,100 +11,121 @@ import ForecastSlider from "./components/MapView/ForecastSlider";
 import Legend from "./components/Legend/Legend";
 import { useTripAnalysis } from "./hooks/useTripAnalysis";
 
-const panel = {
-  background: "var(--color-surface)",
-  border: "1px solid var(--color-border)",
-  borderRadius: "var(--radius)",
-  boxShadow: "var(--shadow)",
-  padding: 20,
-  marginBottom: 20,
-};
-
 export default function App() {
   const { status, data, error, analyze } = useTripAnalysis();
   const loading = status === "loading";
+  const showAnalysis = status === "success";
 
   const [selectedRouteId, setSelectedRouteId] = useState(null);
   const [forecastHour, setForecastHour] = useState(0);
 
-  const effectiveSelectedRouteId =
-    status === "success"
-      ? (selectedRouteId ??
-        data.recommended_route_id ??
-        data.routes[0]?.id ??
-        null)
-      : null;
+  const effectiveSelectedRouteId = showAnalysis
+    ? (selectedRouteId ??
+      data.recommended_route_id ??
+      data.routes[0]?.id ??
+      null)
+    : null;
+
+  const selectedRoute = showAnalysis
+    ? data.routes.find((route) => route.id === effectiveSelectedRouteId)
+    : null;
+
+  const heatmap = showAnalysis ? (data.heatmap?.data ?? []) : [];
+  const referenceTime = showAnalysis
+    ? (data.heatmap?.reference_time ?? null)
+    : null;
 
   return (
     <main
-      style={{ maxWidth: 1100, margin: "0 auto", padding: "32px 24px 64px" }}
+      className={`app-shell ${showAnalysis ? "app-shell--analysis" : "app-shell--landing"}`}
     >
-      <header style={{ marginBottom: 28 }}>
-        <h1 style={{ margin: 0, fontSize: 30, fontWeight: 700 }}>
-          Weather-Aware Truck Routing
-        </h1>
-        <p
-          style={{
-            margin: "6px 0 0",
-            color: "var(--color-text-muted)",
-            fontSize: 15,
-          }}
+      {/* Full-bleed map backdrop — always present, landing or analysis. */}
+      <div className="map-backdrop">
+        <MapView
+          routes={showAnalysis ? data.routes : []}
+          selectedRouteId={effectiveSelectedRouteId}
         >
-          Compare route options by weather risk along the way, and get a
-          recommended route balancing safety and travel time.
-        </p>
+          {showAnalysis && (
+            <>
+              <HeatmapLayer points={heatmap} selectedHour={forecastHour} />
+              <RouteLayer
+                routes={data.routes}
+                recommendedRouteId={data.recommended_route_id}
+                selectedRouteId={effectiveSelectedRouteId}
+                onSelectRoute={setSelectedRouteId}
+              />
+              <CheckpointMarkers route={selectedRoute} />
+            </>
+          )}
+        </MapView>
+      </div>
+
+      <header className="app-header">
+        <p className="app-eyebrow">TRIP PLANNING · WEATHER INTELLIGENCE</p>
+        <h1>Weather-Aware Truck Routing</h1>
       </header>
 
-      <section style={panel}>
-        <TripForm
-          onSubmit={analyze}
-          loading={loading}
-          serverErrors={error?.details}
-        />
-      </section>
+    
+      {!showAnalysis && (
+        <section className="panel trip-form-panel trip-form-panel--standalone">
+          <TripForm
+            onSubmit={analyze}
+            loading={loading}
+            serverErrors={error?.details}
+          />
+        </section>
+      )}
 
       {loading && (
-        <section
-          style={{
-            ...panel,
-            textAlign: "center",
-            color: "var(--color-text-muted)",
-          }}
-        >
-          Analyzing routes and weather along the way…
-        </section>
+        <div className="map-loading-overlay" aria-live="polite">
+          <span className="map-spinner" aria-hidden="true" />
+          <span>Fetching route…</span>
+        </div>
       )}
 
       {status === "error" && (
         <section
+          className="panel error-panel error-panel--floating"
           role="alert"
-          style={{
-            ...panel,
-            background: "#fdecea",
-            borderColor: "#f3c4c0",
-            color: "var(--color-danger)",
-          }}
         >
           <strong>{error.code}</strong>: {error.message}
         </section>
       )}
 
-      {status === "success" &&
-        (() => {
-          const heatmap = data.heatmap?.data ?? [];
-          const referenceTime = data.heatmap?.reference_time ?? null;
-          const selectedRoute = data.routes.find(
-            (r) => r.id === effectiveSelectedRouteId,
-          );
+      {/* Analysis state: floating sidebar + floating map controls. */}
+      {showAnalysis && (
+        <>
+          <aside className="analysis-sidebar">
+            <section className="panel trip-form-panel">
+              <div className="panel-heading">
+                <div>
+                  <p className="section-kicker">TRIP DETAILS</p>
+                  <h2>Route analysis</h2>
+                </div>
+              </div>
 
-          return (
-            <>
-              <WarningsBanner warnings={data.warnings} />
+              <TripForm
+                onSubmit={analyze}
+                loading={loading}
+                serverErrors={error?.details}
+              />
+            </section>
 
-              <section style={panel}>
-                <h2 style={{ margin: "0 0 12px", fontSize: 18 }}>
-                  Route options
-                </h2>
+            <WarningsBanner warnings={data.warnings} />
+
+            <section className="panel route-options-panel">
+              <div className="panel-heading">
+                <div>
+                  <p className="section-kicker">COMPARE OPTIONS</p>
+                  <h2>Route options</h2>
+                </div>
+                <span className="route-count">
+                  {data.routes.length}{" "}
+                  {data.routes.length === 1 ? "route" : "routes"}
+                </span>
+              </div>
+
+              <div className="route-card-list">
                 {data.routes.map((route) => (
                   <RouteSummaryCard
                     key={route.id}
@@ -114,73 +135,28 @@ export default function App() {
                     onSelect={setSelectedRouteId}
                   />
                 ))}
-              </section>
+              </div>
+            </section>
+          </aside>
 
-              <section style={panel}>
-                <div
-                  style={{
-                    display: "flex",
-                    justifyContent: "space-between",
-                    alignItems: "center",
-                    marginBottom: 12,
-                  }}
-                >
-                  <h2 style={{ margin: 0, fontSize: 18 }}>
-                    Weather forecast map
-                  </h2>
-                  <Legend />
-                </div>
-                <p
-                  style={{
-                    margin: "0 0 12px",
-                    fontSize: 13,
-                    color: "var(--color-text-muted)",
-                  }}
-                >
-                  Solid lines are routes (click to compare). Translucent circles
-                  are the weather heatmap, sampled at each checkpoint along the
-                  corridor — drag the slider to see how risk changes over the
-                  next 48 hours.
-                </p>
-                <ForecastSlider
-                  hour={forecastHour}
-                  onHourChange={setForecastHour}
-                  referenceTime={referenceTime}
-                />
-                <div
-                  style={{
-                    borderRadius: "var(--radius)",
-                    overflow: "hidden",
-                    border: "1px solid var(--color-border)",
-                  }}
-                >
-                  <MapView routes={data.routes}>
-                    <HeatmapLayer
-                      points={heatmap}
-                      selectedHour={forecastHour}
-                    />
-                    <RouteLayer
-                      routes={data.routes}
-                      recommendedRouteId={data.recommended_route_id}
-                      selectedRouteId={effectiveSelectedRouteId}
-                      onSelectRoute={setSelectedRouteId}
-                    />
-                    <CheckpointMarkers route={selectedRoute} />
-                  </MapView>
-                </div>
-              </section>
+          <div className="map-panel-header">
+            <Legend />
+          </div>
 
-              <details
-                style={{ fontSize: 13, color: "var(--color-text-muted)" }}
-              >
-                <summary style={{ cursor: "pointer" }}>
-                  Debug: raw response
-                </summary>
-                <DebugResults data={data} />
-              </details>
-            </>
-          );
-        })()}
+          <div className="forecast-overlay">
+            <ForecastSlider
+              hour={forecastHour}
+              onHourChange={setForecastHour}
+              referenceTime={referenceTime}
+            />
+          </div>
+
+          <details className="debug-details">
+            <summary>Debug: raw response</summary>
+            <DebugResults data={data} />
+          </details>
+        </>
+      )}
     </main>
   );
 }

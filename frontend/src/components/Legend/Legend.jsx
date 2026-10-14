@@ -1,3 +1,4 @@
+import { useState } from "react";
 import { RISK_COLORS } from "../MapView/riskColors";
 
 const LABELS = {
@@ -9,32 +10,51 @@ const LABELS = {
   unknown: "Unknown",
 };
 
+const DESCRIPTIONS = {
+  low: "Safe conditions for normal operation.",
+  moderate: "Minor caution advised.",
+  high: "Significant risk — consider delaying.",
+  severe: "Dangerous conditions for this load.",
+  no_travel: "Travel not recommended at all.",
+  unknown: "Weather data unavailable at this checkpoint.",
+};
+
 export default function Legend() {
+  const [open, setOpen] = useState(false);
+
   return (
-    <div style={{ display: "flex", gap: 14, flexWrap: "wrap" }}>
-      {Object.entries(RISK_COLORS).map(([key, color]) => (
+    <div className="legend">
+      <button
+        type="button"
+        className="legend-toggle"
+        onClick={() => setOpen((v) => !v)}
+        aria-expanded={open}
+      >
+        Legend
         <span
-          key={key}
-          style={{
-            display: "flex",
-            alignItems: "center",
-            gap: 6,
-            fontSize: 12,
-            color: "var(--color-text-muted)",
-          }}
+          className={`legend-chevron ${open ? "legend-chevron--open" : ""}`}
         >
-          <span
-            style={{
-              width: 10,
-              height: 10,
-              borderRadius: "50%",
-              background: color,
-              display: "inline-block",
-            }}
-          />
-          {LABELS[key]}
+          ▾
         </span>
-      ))}
+      </button>
+
+      {open && (
+        <div className="legend-panel">
+          {Object.entries(RISK_COLORS).map(([key, color]) => (
+            <div key={key} className="legend-row">
+              <span
+                className="legend-dot"
+                style={{ background: color }}
+                aria-hidden="true"
+              />
+              <div>
+                <div className="legend-label">{LABELS[key]}</div>
+                <div className="legend-desc">{DESCRIPTIONS[key]}</div>
+              </div>
+            </div>
+          ))}
+        </div>
+      )}
     </div>
   );
 }

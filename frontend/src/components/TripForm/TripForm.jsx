@@ -3,14 +3,14 @@ import { useState } from "react";
 const INTERVALS = [10, 25, 50];
 const pad = (n) => String(n).padStart(2, "0");
 
-// <input type="datetime-local"> wants "YYYY-MM-DDTHH:mm" in LOCAL time.
+
 function defaultDeparture() {
   const d = new Date(Date.now() + 60 * 60 * 1000);
   d.setMinutes(0, 0, 0);
   return `${d.getFullYear()}-${pad(d.getMonth() + 1)}-${pad(d.getDate())}T${pad(d.getHours())}:${pad(d.getMinutes())}`;
 }
 
-// Error keys use the API's field names so client and server errors render the same way.
+
 function validate(values) {
   const errors = {};
   if (!values.origin.trim()) errors.origin = "Origin is required.";
@@ -30,21 +30,24 @@ function toPayload(values) {
   return {
     origin: values.origin.trim(),
     destination: values.destination.trim(),
-    // new Date(local).toISOString() converts local time to an unambiguous UTC instant.
+ 
     departure_time: new Date(values.departure).toISOString(),
     load_weight_lb: Number(values.loadWeight),
     checkpoint_interval_miles: Number(values.interval),
   };
 }
 
-function Field({ label, error, children }) {
+function Field({ label, error, dot, children }) {
   return (
-    <label
-      style={{ display: "flex", flexDirection: "column", gap: 4, fontSize: 14 }}
-    >
-      {label}
+    <label className="field">
+      <span className="field-label">
+        {dot && (
+          <span className={`field-dot field-dot--${dot}`} aria-hidden="true" />
+        )}
+        {label}
+      </span>
       {children}
-      {error && <span style={{ color: "#b00020", fontSize: 12 }}>{error}</span>}
+      {error && <span className="field-error">{error}</span>}
     </label>
   );
 }
@@ -72,59 +75,64 @@ export default function TripForm({ onSubmit, loading, serverErrors }) {
   };
 
   return (
-    <form
-      onSubmit={handleSubmit}
-      noValidate
-      style={{
-        display: "grid",
-        gridTemplateColumns: "repeat(auto-fit, minmax(200px, 1fr))",
-        gap: 12,
-        margin: "16px 0",
-      }}
-    >
-      <Field label="Origin" error={errorFor("origin")}>
-        <input value={values.origin} onChange={update("origin")} />
-      </Field>
-      <Field label="Destination" error={errorFor("destination")}>
-        <input value={values.destination} onChange={update("destination")} />
-      </Field>
-      <Field
-        label="Departure (your local time)"
-        error={errorFor("departure_time")}
-      >
-        <input
-          type="datetime-local"
-          value={values.departure}
-          onChange={update("departure")}
-        />
-      </Field>
-      <Field label="Load weight (lb)" error={errorFor("load_weight_lb")}>
-        <input
-          type="number"
-          min="1"
-          value={values.loadWeight}
-          onChange={update("loadWeight")}
-        />
-      </Field>
-      <Field
-        label="Checkpoint interval"
-        error={errorFor("checkpoint_interval_miles")}
-      >
-        <select value={values.interval} onChange={update("interval")}>
-          {INTERVALS.map((m) => (
-            <option key={m} value={m}>
-              {m} miles
-            </option>
-          ))}
-        </select>
-      </Field>
-      <button
-        type="submit"
-        disabled={loading}
-        style={{ alignSelf: "end", padding: "8px 16px" }}
-      >
-        {loading ? "Analyzing…" : "Analyze routes"}
-      </button>
-    </form>
+    <div className="trip-form">
+     
+      <form onSubmit={handleSubmit} noValidate className="trip-form-fields">
+        <Field label="From" dot="green" error={errorFor("origin")}>
+          <input
+            placeholder="Starting location…"
+            value={values.origin}
+            onChange={update("origin")}
+          />
+        </Field>
+
+        <Field label="To" dot="red" error={errorFor("destination")}>
+          <input
+            placeholder="Destination…"
+            value={values.destination}
+            onChange={update("destination")}
+          />
+        </Field>
+
+        <Field
+          label="Departure"
+          error={errorFor("departure_time")}
+        >
+          <input
+            type="datetime-local"
+            value={values.departure}
+            onChange={update("departure")}
+          />
+        </Field>
+
+        <Field label="Load weight (lb)" error={errorFor("load_weight_lb")}>
+          <input
+            type="number"
+            min="1"
+            value={values.loadWeight}
+            onChange={update("loadWeight")}
+          />
+        </Field>
+
+        <Field
+          label="Checkpoint interval"
+          error={errorFor("checkpoint_interval_miles")}
+        >
+          <select value={values.interval} onChange={update("interval")}>
+            {INTERVALS.map((m) => (
+              <option key={m} value={m}>
+                {m} miles
+              </option>
+            ))}
+          </select>
+        </Field>
+
+        <button type="submit" className="trip-form-submit" disabled={loading}>
+          <span className="trip-form-submit-icon" aria-hidden="true">
+          </span>
+          {loading ? "Analyzing…" : "Check conditions"}
+        </button>
+      </form>
+    </div>
   );
 }
