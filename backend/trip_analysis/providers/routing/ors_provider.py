@@ -10,6 +10,15 @@ logger = logging.getLogger(__name__)
 
 METERS_PER_MILE = 1609.344
 
+# ORS rejects alternative_routes once the *road* distance exceeds 100km (error
+# code 2004), and it can take ~30s+ to compute that rejection. We only know
+# straight-line (haversine) distance before calling ORS, and road distance is
+# always >= straight-line distance, so we use a conservative threshold below
+# the 100km-in-miles equivalent (~62.1mi) to pre-emptively skip doomed
+# alternative_routes requests. Borderline trips (straight-line under the cap
+# but an actual winding road route over it) may still hit ORS's slow
+# rejection path; the existing retry-without-alternatives fallback covers that.
+
 ALTERNATIVE_ROUTES_DISTANCE_CAP_MILES = 55
 
 class ORSRoutingProvider(RoutingProvider):
