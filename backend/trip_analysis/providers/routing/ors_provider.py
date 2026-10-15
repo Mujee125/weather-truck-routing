@@ -1,10 +1,11 @@
+
 import logging
 
 import requests
 
 from .base import RoutingProvider, RouteOption, RouteStep
 from ..exceptions import RoutingError, describe_request_error
-from ...domain.geo import haversine_miles  
+from ...domain.geo import haversine_miles
 
 logger = logging.getLogger(__name__)
 
@@ -17,9 +18,10 @@ METERS_PER_MILE = 1609.344
 # the 100km-in-miles equivalent (~62.1mi) to pre-emptively skip doomed
 # alternative_routes requests. Borderline trips (straight-line under the cap
 # but an actual winding road route over it) may still hit ORS's slow
-# rejection path; the existing retry-without-alternatives fallback covers that.
+# rejection path; the retry-without-alternatives fallback below covers that.
 
 ALTERNATIVE_ROUTES_DISTANCE_CAP_MILES = 55
+
 
 class ORSRoutingProvider(RoutingProvider):
     """OpenRouteService directions adapter (driving-hgv profile).
@@ -28,6 +30,8 @@ class ORSRoutingProvider(RoutingProvider):
     Known limitation: alternative_routes is skipped pre-emptively for trips
     whose straight-line distance already implies the route will exceed ORS's
     100km cap for that feature (error 2004). See ALTERNATIVE_ROUTES_DISTANCE_CAP_MILES.
+    The service layer always requests target_count=3; this adapter is
+    responsible for degrading that request when ORS cannot fulfill it.
     """
 
     BASE_URL = "https://api.openrouteservice.org/v2/directions/driving-hgv/geojson"
@@ -51,10 +55,23 @@ class ORSRoutingProvider(RoutingProvider):
 
         # instructions=True is REQUIRED: without it ORS omits per-step data we need for ETAs.
         plain_body = {"coordinates": [[o_lng, o_lat], [d_lng, d_lat]], "instructions": True}
+
         wants_alternatives = target_count > 1
+        straight_line_miles = haversine_miles(o_lat, o_lng, d_lat, d_lng)
+        can_request_alternatives = (
+            wants_alternatives and straight_line_miles < ALTERNATIVE_ROUTES_DISTANCE_CAP_MILES
+        )
+
+        if wants_alternatives and not can_request_alternatives:
+            logger.info(
+                "Skipping ORS alternative_routes: straight-line distance %.1fmi >= %.1fmi cap.",
+                straight_line_miles,
+                ALTERNATIVE_ROUTES_DISTANCE_CAP_MILES,
+            )
+
         body = (
             {**plain_body, "alternative_routes": {"target_count": target_count, "share_factor": 0.6, "weight_factor": 1.4}}
-            if wants_alternatives
+            if can_request_alternatives
             else plain_body
         )
 
@@ -63,10 +80,12 @@ class ORSRoutingProvider(RoutingProvider):
                 data = self._post(body)
             except requests.HTTPError as exc:
                 rejected = exc.response is not None and exc.response.status_code == 400
-                if not (wants_alternatives and rejected):
+                if not (can_request_alternatives and rejected):
                     raise
-                # ORS may reject alternatives (e.g. distance limits). Degrade to the
-                # single best route; the service adds a "fewer than 3 routes" warning.
+                # Borderline case: straight-line distance was under the cap, but ORS
+                # still rejected alternatives (e.g. winding road route exceeded the
+                # limit). Degrade to the single best route; the service adds a
+                # "fewer than 3 routes" warning.
                 logger.warning(
                     "ORS rejected alternative_routes (%s); retrying for a single route.",
                     describe_request_error(exc),
