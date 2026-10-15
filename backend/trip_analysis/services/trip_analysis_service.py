@@ -19,7 +19,7 @@ logger = logging.getLogger(__name__)
 
 WEATHER_MATCH_TOLERANCE_MINUTES = 30
 COORDINATE_ROUND_DECIMALS = 3   # ~111 m; used to dedupe weather lookups
-WEATHER_MAX_WORKERS = 8
+WEATHER_MAX_WORKERS = 3
 HEATMAP_HOURS = 48
 
 
