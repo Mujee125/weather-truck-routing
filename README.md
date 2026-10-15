@@ -193,7 +193,20 @@ Highlights:
 
 ## Screenshots
 
-<<insert 3–5 screenshots or a short GIF: trip form, map with 3 routes + risk-colored checkpoints, route summary cards, heatmap slider at different hours, warnings banner example>>
+**Trip input form**
+![Trip form](docs/screenshots/01-trip-form.png)
+
+**Route options with risk-colored checkpoints**
+![Route result](docs/screenshots/02-normal-route-result.png)
+
+**Route summary cards (severe/high miles, average risk, eligibility)**
+![Route summaries](docs/screenshots/03-route-summary-cards.png)
+
+**0–48h weather heatmap slider**
+![Heatmap slider](docs/screenshots/04-heatmap-slider.png)
+
+**Edge case: warning banner (fewer routes / high load weight escalation)**
+![Edge case warning](docs/screenshots/05-edge-case-warning.png)
 
 ## Project Structure
 
