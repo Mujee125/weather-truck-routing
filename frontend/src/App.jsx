@@ -61,7 +61,7 @@ export default function App() {
       </div>
 
       <header className="app-header">
-        <p className="app-eyebrow">TRIP PLANNING · WEATHER INTELLIGENCE</p>
+        <p className="app-eyebrow">ROUTE PLANNING · WEATHER INTELLIGENCE</p>
         <h1>Weather-Aware Truck Routing</h1>
       </header>
 
