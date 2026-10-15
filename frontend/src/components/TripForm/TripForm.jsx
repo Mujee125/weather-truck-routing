@@ -130,7 +130,7 @@ export default function TripForm({ onSubmit, loading, serverErrors }) {
         <button type="submit" className="trip-form-submit" disabled={loading}>
           <span className="trip-form-submit-icon" aria-hidden="true">
           </span>
-          {loading ? "Analyzing…" : "Check conditions"}
+          {loading ? "Analyzing…" : "Check Routes"}
         </button>
       </form>
     </div>
