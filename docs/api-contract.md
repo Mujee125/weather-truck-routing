@@ -19,6 +19,7 @@ Request (`application/json`):
 ```
 
 Rules:
+
 - `origin`, `destination`: non-empty location text.
 - `departure_time`: ISO 8601 date-time with timezone.
 - `load_weight_lb`: positive number, in pounds.
@@ -27,7 +28,7 @@ Rules:
 
 ## 2. Successful Response
 
-Return HTTP `200` with the available route options, checkpoint assessments, recommendation, warnings, and heatmap data needed by the UI. The example below illustrates the shape only; values and IDs must come from actual analysis.
+Return HTTP `200` with the available route options, checkpoint assessments, recommendation, warnings, and heatmap data needed by the UI. The example below illustrates the response shape; values and IDs come from the actual analysis.
 
 ```json
 {
@@ -35,7 +36,10 @@ Return HTTP `200` with the available route options, checkpoint assessments, reco
   "routes": [
     {
       "id": "route-2",
-      "geometry": { "type": "LineString", "coordinates": [] },
+      "geometry": {
+        "type": "LineString",
+        "coordinates": []
+      },
       "distance_miles": 240,
       "duration_minutes": 230,
       "eligible": true,
@@ -63,37 +67,70 @@ Return HTTP `200` with the available route options, checkpoint assessments, reco
     }
   ],
   "heatmap": {
-    "reference_time": "2026-10-13T21:00:00-05:00",
-    "available_forecast_hours": [0, 1, 2, 3, 48],
-    "data": []
+    "reference_time": "2026-10-13T21:00:00+00:00",
+    "available_forecast_hours": [0, 1, 2, 3],
+    "data": [
+      {
+        "latitude": 32.8,
+        "longitude": -96.8,
+        "forecast": [
+          {
+            "hour_offset": 0,
+            "wind_mph": 22,
+            "rain_in_per_hour": 0,
+            "snow_in_per_hour": 0,
+            "risk_level": "low",
+            "risk_score": 0
+          }
+        ]
+      }
+    ]
   },
   "warnings": []
 }
 ```
 
 Contract notes:
-- `routes` contains up to three **actual** route alternatives returned by the provider; never fabricate a missing option. Include a warning if fewer than three are available.
+
+- `routes` contains up to three **actual** route alternatives returned by the routing provider; never fabricate a missing option. Include a top-level warning if fewer than three are available.
+- The OpenRouteService adapter may return only one route for longer trips because ORS does not support alternative routes beyond its distance limit. This provider limitation is handled explicitly and reported through the existing fewer-than-three warning.
 - `geometry` uses GeoJSON `LineString` coordinates in `[longitude, latitude]` order.
-- Each checkpoint's `eta` is its estimated arrival time; weather should correspond to that location and time.
-- `risk_level` is one of `low`, `moderate`, `high`, `severe`, or `no_travel`. Use an explicit unknown/missing-data representation rather than assigning Low risk when weather is unavailable.
-- `summary` values must be calculated from checkpoint/segment results. Document how checkpoint risk is converted into risk miles and average risk.
-- `heatmap.data` is provider-neutral data for the route-corridor weather layer. Its exact shape depends on the selected map/weather provider; it must support the required 0–48-hour forecast slider. Do not expose private provider keys.
-- `recommended_route_id` is `null` when no route can be recommended safely or validly; explain why in `warnings`.
+- Each checkpoint's `eta` is its estimated arrival time. Its weather assessment corresponds to that checkpoint location and ETA.
+- `risk_level` is one of `low`, `moderate`, `high`, `severe`, `no_travel`, or `unknown`.
+- If no weather sample can be matched to a checkpoint, `weather` may be `null`, `risk_level` is `unknown`, and the checkpoint and route include warnings. Missing weather is never treated as Low risk.
+- `summary` values are calculated from checkpoint/segment results according to the policy documented in [`DECISIONS.md`](./DECISIONS.md).
+- `heatmap.reference_time` is the backend's current UTC hour, floored to the beginning of the hour.
+- `heatmap.available_forecast_hours` contains the contiguous hourly offsets available to the slider, normally `0` through `48` inclusive. The example above is abbreviated.
+- Each `heatmap.data` entry represents one route-corridor coordinate and contains hourly forecast entries.
+- A heatmap forecast entry contains raw weather values plus the server-calculated `risk_level` and `risk_score`. This lets the frontend render the heatmap without duplicating business rules.
+- `risk_score` uses `low = 0`, `moderate = 1`, `high = 2`, `severe = 3`, and `no_travel = 4`. It may be `null` when risk is unknown.
+- Heatmap corridor points reuse deduplicated checkpoint coordinates from the analyzed routes. No provider keys or secrets are exposed.
+- `recommended_route_id` is `null` when no route can be recommended safely. A top-level warning explains why.
 
 ## 3. Route Ranking
 
-Rank routes by the assessment's ordered preferences:
+Eligible routes are ranked using the assessment's ordered preferences:
 
 1. Fewest Severe miles
 2. Fewest High miles
 3. Lowest average risk
 4. Shortest travel time
 
-**Proposed policy to document:** mark a route containing a `no_travel` checkpoint as ineligible. If all routes are ineligible, return `recommended_route_id: null`. The assessment brief does not explicitly define this behavior.
+A route containing at least one `no_travel` checkpoint is marked ineligible and excluded from recommendation ranking. Ineligible routes remain in the response so the UI can display and explain them.
+
+If all returned routes are ineligible, the API returns:
+
+```json
+{
+  "recommended_route_id": null
+}
+```
+
+The complete response also includes a top-level warning explaining that no eligible route is available.
 
 ## 4. Errors
 
-Use a consistent error shape:
+Use a consistent error envelope:
 
 ```json
 {
@@ -104,13 +141,30 @@ Use a consistent error shape:
 }
 ```
 
-Suggested handling:
-- `400 Bad Request`: invalid input.
-- `502 Bad Gateway`: routing, geocoding, or weather provider failure that prevents analysis.
-- `503 Service Unavailable`: required service temporarily unavailable, if that distinction is useful in implementation.
+Invalid input returns HTTP `400` with code `INVALID_REQUEST`. It may include an optional `details` object containing field-level validation errors:
 
-If some checkpoint weather is missing but a partial analysis can still be returned, include an explicit checkpoint warning and do not silently treat it as safe. Keep error messages user-safe; log provider details on the backend without returning secrets.
+```json
+{
+  "error": {
+    "code": "INVALID_REQUEST",
+    "message": "Request validation failed.",
+    "details": {
+      "checkpoint_interval_miles": [
+        "Must be one of 10, 25, or 50."
+      ]
+    }
+  }
+}
+```
+
+Error handling:
+
+- `400 Bad Request`: invalid input or a location that cannot be resolved.
+- `502 Bad Gateway`: a routing, geocoding, or weather provider failure that prevents analysis.
+- Provider and internal diagnostic details are logged on the backend and are not exposed to clients.
+- If weather is unavailable for only some checkpoint locations, return the partial analysis with explicit warnings rather than failing the entire request or silently treating missing weather as safe.
+- If weather is unavailable for all checkpoint locations, the analysis fails with a provider-unavailable error.
 
 ## 5. Assessment-Specific Decisions
 
-The brief does not resolve overlapping rain/snow boundaries, combining multiple weather risks, risk-mile calculation, or the heatmap's reference time. Define these consistently in the risk engine and README. Keep this contract small; add endpoints only if the implementation genuinely needs them.
+The assessment does not define all boundary and failure behaviors. The implemented policies for threshold boundaries, combining weather conditions, load overrides, route-level risk miles, route eligibility, missing weather, heatmap timing, and routing-provider limitations are documented in [`DECISIONS.md`](./DECISIONS.md).
