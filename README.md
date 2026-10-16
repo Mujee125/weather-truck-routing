@@ -4,7 +4,7 @@ A full-stack web app that helps a truck driver choose the safest route between t
 
 **Live app:** https://weather-truck-routing-frontend.onrender.com
 **Live API:** https://weather-truck-routing-api-dgnx.onrender.com
-**Loom walkthrough:** <<add Loom link once recorded>>
+**Loom walkthrough:** https://www.loom.com/share/905e1ca6416e4f8eb917e3016d86dbbd
 
 > Note: the backend is hosted on Render's free tier and may take 30–60s to wake from a cold start on first request. A keep-alive monitor (UptimeRobot) pings `/api/health` every 5 minutes to minimize this.
 
